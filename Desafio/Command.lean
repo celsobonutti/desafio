@@ -24,24 +24,24 @@ namespace Key
 end Key
 
 def parseValue : Parsec.ByteArray.Parser ByteArray := do
-  ByteArray.mk <$> Parsec.many Parsec.any
+  ByteArray.mk <$> Parsec.many (Parsec.satisfy (λ x => x != '\n'.toUInt8))
 
 def parseRead : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipString "read"
   Parsec.ByteArray.ws
   let key ← Key.parse
-  Parsec.eof
+  Parsec.ByteArray.skipByteChar '\n'
   pure (read key)
 
 def parseDelete : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipString "delete"
   Parsec.ByteArray.ws
   let key ← Key.parse
-  Parsec.eof
+  Parsec.ByteArray.skipByteChar '\n'
   pure (delete key)
 
 def parseStatus : Parsec.ByteArray.Parser Command :=
-  Parsec.ByteArray.skipString "status" *> Parsec.eof *> pure status
+  Parsec.ByteArray.skipString "status" *> Parsec.ByteArray.skipByteChar '\n' *> pure status
 
 def parseWrite : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipString "write"
@@ -49,7 +49,7 @@ def parseWrite : Parsec.ByteArray.Parser Command := do
   let key ← Key.parse
   Parsec.skip
   let value ← parseValue
-  Parsec.eof
+  Parsec.ByteArray.skipByteChar '\n'
   pure (write key value)
 
 def parser : Parsec.ByteArray.Parser Command := do
