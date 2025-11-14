@@ -9,6 +9,15 @@ inductive Command : Type where
   | delete : String → Command
   | status : Command
 
+def Command.toString : Command → String
+  | read x => s!"Read: {x}"
+  | write key value => s!"Writing {key} with {value}"
+  | delete x => s!"Delete: {x}"
+  | status => "Status"
+
+instance instToStringCommand : ToString Command where
+  toString := Command.toString
+
 namespace Command
 
 namespace Key
@@ -17,6 +26,7 @@ namespace Key
     <|> Parsec.ByteArray.asciiLetter
     <|> Parsec.ByteArray.pByteChar '.'
     <|> Parsec.ByteArray.pByteChar '-'
+    <|> Parsec.ByteArray.pByteChar '_'
     <|> Parsec.ByteArray.pByteChar ':'
 
   def parse : Parsec.ByteArray.Parser String := do
@@ -24,24 +34,24 @@ namespace Key
 end Key
 
 def parseValue : Parsec.ByteArray.Parser ByteArray := do
-  ByteArray.mk <$> Parsec.many (Parsec.satisfy (λ x => x != '\n'.toUInt8))
+  ByteArray.mk <$> Parsec.many (Parsec.satisfy (λ x => x != '\r'.toUInt8))
 
 def parseRead : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipString "read"
   Parsec.ByteArray.ws
   let key ← Key.parse
-  Parsec.ByteArray.skipByteChar '\n'
+  Parsec.ByteArray.skipByteChar '\r'
   pure (read key)
 
 def parseDelete : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipString "delete"
   Parsec.ByteArray.ws
   let key ← Key.parse
-  Parsec.ByteArray.skipByteChar '\n'
+  Parsec.ByteArray.skipByteChar '\r'
   pure (delete key)
 
 def parseStatus : Parsec.ByteArray.Parser Command :=
-  Parsec.ByteArray.skipString "status" *> Parsec.ByteArray.skipByteChar '\n' *> pure status
+  Parsec.ByteArray.skipString "status" *> Parsec.ByteArray.skipByteChar '\r' *> pure status
 
 def parseWrite : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipString "write"
@@ -49,7 +59,7 @@ def parseWrite : Parsec.ByteArray.Parser Command := do
   let key ← Key.parse
   Parsec.skip
   let value ← parseValue
-  Parsec.ByteArray.skipByteChar '\n'
+  Parsec.ByteArray.skipByteChar '\r'
   pure (write key value)
 
 def parser : Parsec.ByteArray.Parser Command := do
