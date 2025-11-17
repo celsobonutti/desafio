@@ -5,12 +5,16 @@ open Std.Internal
 
 inductive Command : Type where
   | read : String → Command
-  | write : String → ByteArray → Command
+  | reads : String → Command
+  | keys : Command
+  | write : String → String → Command
   | delete : String → Command
   | status : Command
 
 def Command.toString : Command → String
   | read x => s!"Read: {x}"
+  | reads x => s!"Reading with prefix: {x}"
+  | keys => "Keys"
   | write key value => s!"Writing {key} with {value}"
   | delete x => s!"Delete: {x}"
   | status => "Status"
@@ -33,8 +37,9 @@ namespace Key
     Parsec.manyChars parseChar
 end Key
 
-def parseValue : Parsec.ByteArray.Parser ByteArray := do
-  ByteArray.mk <$> Parsec.many (Parsec.satisfy (λ x => x != '\r'.toUInt8))
+def parseValue : Parsec.ByteArray.Parser String := do
+  let value : ByteSlice ← Parsec.ByteArray.takeUntil λ x => x == '\r'.toUInt8
+  pure <| String.fromUTF8!  <| value.toByteArray
 
 def parseRead : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipString "read"
@@ -43,12 +48,22 @@ def parseRead : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipByteChar '\r'
   pure (read key)
 
+def parseReads : Parsec.ByteArray.Parser Command := do
+  Parsec.ByteArray.skipString "reads"
+  Parsec.ByteArray.ws
+  let key ← Key.parse
+  Parsec.ByteArray.skipByteChar '\r'
+  pure (reads key)
+
 def parseDelete : Parsec.ByteArray.Parser Command := do
   Parsec.ByteArray.skipString "delete"
   Parsec.ByteArray.ws
   let key ← Key.parse
   Parsec.ByteArray.skipByteChar '\r'
   pure (delete key)
+
+def parseKeys : Parsec.ByteArray.Parser Command :=
+  Parsec.ByteArray.skipString "keys" *> Parsec.ByteArray.skipByteChar '\r' *> pure keys
 
 def parseStatus : Parsec.ByteArray.Parser Command :=
   Parsec.ByteArray.skipString "status" *> Parsec.ByteArray.skipByteChar '\r' *> pure status
@@ -65,6 +80,8 @@ def parseWrite : Parsec.ByteArray.Parser Command := do
 def parser : Parsec.ByteArray.Parser Command := do
   Parsec.attempt parseStatus
   <|> Parsec.attempt parseRead
+  <|> Parsec.attempt parseReads
+  <|> Parsec.attempt parseKeys
   <|> Parsec.attempt parseDelete
   <|> Parsec.attempt parseWrite
 
