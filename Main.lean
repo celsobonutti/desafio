@@ -13,6 +13,7 @@ import Lean.Data.Json.FromToJson.Basic
 import Lean.Data.Json.FromToJson.Extra
 import Lean.Data.Json.Printer
 import Lean.Data.Json.Parser
+import Desafio.BTreeHelpers
 
 open Std
 open Internal
@@ -114,4 +115,15 @@ def asyncMain : Async Unit := do
   let _ ← Async.concurrently read (background (persistLoop memory))
 
 def main : IO Unit := do
-  asyncMain.block
+    BTree.withBTree fun tree => do
+      tree.write "user:1" (ByteArray.mk #[1, 2, 3])
+      tree.write "user:2" (ByteArray.mk #[4, 5, 6])
+      tree.write "post:1" (ByteArray.mk #[7, 8, 9])
+
+      -- Get all user keys
+      let userKeys ← tree.keysWithPrefix "user:"
+      IO.println s!"User keys: {userKeys}"
+
+      -- Save before exiting
+      tree.save "data.btree"
+  -- asyncMain.block
