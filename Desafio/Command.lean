@@ -7,7 +7,7 @@ inductive Command : Type where
   | read : String → Command
   | reads : String → Command
   | keys : Command
-  | write : String → String → Command
+  | write : String → ByteArray → Command
   | delete : String → Command
   | status : Command
 
@@ -75,7 +75,7 @@ def parseWrite : Parsec.ByteArray.Parser Command := do
   Parsec.skip
   let value ← parseValue
   Parsec.ByteArray.skipByteChar '\r'
-  pure (write key value)
+  pure (write key value.toUTF8)
 
 def parser : Parsec.ByteArray.Parser Command := do
   Parsec.attempt parseStatus

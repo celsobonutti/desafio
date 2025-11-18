@@ -13,14 +13,14 @@ import Lean.Data.Json.FromToJson.Basic
 import Lean.Data.Json.FromToJson.Extra
 import Lean.Data.Json.Printer
 import Lean.Data.Json.Parser
-import Desafio.BTreeHelpers
+import Desafio.BTree
 
 open Std
 open Internal
 open IO.Async.TCP
 open IO.Async
 
-abbrev Memory := TreeMap String String
+abbrev Memory := BTree
 
 def localHost := Std.Net.IPv4Addr.ofParts 127 0 0 1
 
@@ -28,49 +28,51 @@ def socketAddress :=
   Std.Net.SocketAddressV4.mk localHost 8080
 
 def fileLocation : System.FilePath :=
-  s!"./db"
+  s!"./.db"
 
-def processCommand (cmd : Command) (client : Socket.Client) (mutex : SharedMutex Memory) : Async Unit := do
-    IO.println cmd
+unsafe def processCommand (cmd : Command) (client : Socket.Client) (mutex : SharedMutex Memory) : Async Unit := do
     match cmd with
     | Command.status =>
       client.send s!"well going our operation\r".toUTF8
 
     | Command.write key value =>
       mutex.atomically do
-        modify (λ map => map.insert key value)
+        let tree ← get
+        let _ ← BTree.write tree key value
+        pure ()
       client.send s!"well going our operation\r".toUTF8
 
     | Command.read key =>
-      let map ← mutex.atomicallyRead do
-        read
-      match map.get? key with
-      | some data => client.send (data.toUTF8.push '\r'.toUInt8)
+      let value ← mutex.atomicallyRead do
+        let value ← BTree.read key
+        pure value
+      match value with
+      | some data => client.send (data.push '\r'.toUInt8)
       | none =>
           client.send "error\r".toUTF8
 
     | Command.reads prefix_ =>
       let values ← mutex.atomicallyRead do
-        (TreeMap.values ∘ TreeMap.filter (λ key _ => key.startsWith prefix_)) <$> read
+        BTree.filter prefix_
       values
-        |> List.foldl (λacc value => (acc.push '\r'.toUInt8) ++ value.toUTF8) ∅
+        |> Array.foldl (λacc value => (acc.push '\r'.toUInt8) ++ value) ∅
         |> client.send
 
     | Command.keys =>
       let keys ← mutex.atomicallyRead do
-        TreeMap.keys <$> read
+        BTree.keys
       keys
-        |> List.map String.toUTF8
-        |> List.foldl (λacc key => (acc.push '\r'.toUInt8) ++ key) ∅
+        |> Array.foldl (λacc key => (acc.push '\r'.toUInt8) ++ key.toUTF8) ∅
         |> client.send
-      
 
     | Command.delete key =>
       mutex.atomically do
-        modify (λ map => map.erase key)
+        let tree ← get
+        let _ ← BTree.delete tree key
+        pure ()
       client.send "success\r".toUTF8
 
-def readLoop (client : Socket.Client) (mutex : SharedMutex Memory) : Async Unit := do
+unsafe def readLoop (client : Socket.Client) (mutex : SharedMutex Memory) : Async Unit := do
   while true do
     let some byteArr ← client.recv? 10000000
       | pure ()
@@ -83,23 +85,17 @@ def readLoop (client : Socket.Client) (mutex : SharedMutex Memory) : Async Unit 
 def persistLoop (mutex : SharedMutex Memory) : IO Unit := do
   while true do
     let value ← mutex.atomicallyRead read
-    let serialized := Lean.ToJson.toJson value |> Lean.Json.compress
-    IO.FS.writeFile fileLocation serialized
+    BTree.save value fileLocation.toString
     IO.sleep 500
 
 def readPersistedMemory : IO Memory := do
   if ←System.FilePath.pathExists fileLocation then
-    let memoryText ← IO.FS.readFile fileLocation
-    let Except.ok memoryJson := Lean.Json.parse memoryText
-      | return ∅
-    pure <|
-      match Lean.FromJson.fromJson? memoryJson with
-      | Except.ok x => x
-      | Except.error _ => ∅
-  else
-    pure ∅
+    BTree.load fileLocation.toString
+  else do
+    let tree ← BTree.mk
+    pure tree
 
-def asyncMain : Async Unit := do
+unsafe def asyncMain : Async Unit := do
   let persistedMemory ← readPersistedMemory
   let memory : SharedMutex Memory ← SharedMutex.new persistedMemory
   let server ← Socket.Server.mk
@@ -114,16 +110,5 @@ def asyncMain : Async Unit := do
 
   let _ ← Async.concurrently read (background (persistLoop memory))
 
-def main : IO Unit := do
-    BTree.withBTree fun tree => do
-      tree.write "user:1" (ByteArray.mk #[1, 2, 3])
-      tree.write "user:2" (ByteArray.mk #[4, 5, 6])
-      tree.write "post:1" (ByteArray.mk #[7, 8, 9])
-
-      -- Get all user keys
-      let userKeys ← tree.keysWithPrefix "user:"
-      IO.println s!"User keys: {userKeys}"
-
-      -- Save before exiting
-      tree.save "data.btree"
-  -- asyncMain.block
+unsafe def main : IO Unit := do
+  asyncMain.block

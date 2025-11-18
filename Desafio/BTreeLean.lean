@@ -12,23 +12,23 @@ opaque free (tree : @& BTree) : IO Unit
 
 /-- Write a key-value pair to the BTree -/
 @[extern "btree_write"]
-opaque write (tree : @& BTree) (key : @& String) (data : @& ByteArray) : IO Unit
+opaque write_c (tree : @& BTree) (key : @& String) (data : @& ByteArray) : IO Unit
 
 /-- Read a value by key from the BTree -/
 @[extern "btree_read"]
-opaque read (tree : @& BTree) (key : @& String) : IO (Option ByteArray)
+opaque read_c (tree : @& BTree) (key : @& String) : IO (Option ByteArray)
 
 /-- Delete a key-value pair from the BTree -/
 @[extern "btree_delete_impl"]
-opaque delete (tree : @& BTree) (key : @& String) : IO Unit
+opaque delete_c (tree : @& BTree) (key : @& String) : IO Unit
 
 /-- Filter keys by prefix, returning all matching values -/
 @[extern "btree_filter"]
-opaque filter (tree : @& BTree) (prefix_ : @& String) : IO (Array ByteArray)
+opaque filter_c (tree : @& BTree) (prefix_ : @& String) : IO (Array ByteArray)
 
 /-- Get all keys in the BTree -/
 @[extern "btree_keys"]
-opaque keys (tree : @& BTree) : IO (Array String)
+opaque keys_c (tree : @& BTree) : IO (Array String)
 
 /-- Save the BTree to a file -/
 @[extern "btree_save_impl"]
