@@ -107,7 +107,8 @@ def asyncMain : Async Unit := do
   let read := do
     while true do
       let client ← server.accept
-      IO.println "Client connected"
+      client.keepAlive true 10
+      client.noDelay
       background (readLoop client memory)
 
   let _ ← Async.concurrently read (background (persistLoop memory))
