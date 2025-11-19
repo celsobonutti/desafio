@@ -30,7 +30,6 @@ def fileLocation : System.FilePath :=
   s!"./db"
 
 def processCommand (cmd : Command) (client : Socket.Client) (mutex : SharedMutex Memory) : Async Unit := do
-    IO.println cmd
     match cmd with
     | Command.status =>
       client.send s!"well going our operation\r".toUTF8
@@ -77,7 +76,7 @@ def readLoop (client : Socket.Client) (mutex : SharedMutex Memory) : Async Unit 
     let Except.ok result := Command.parser.run byteArr
       | client.send "error\r".toUTF8
 
-    processCommand result client mutex
+    background <| processCommand result client mutex
 
 def persistLoop (mutex : SharedMutex Memory) : IO Unit := do
   while true do
