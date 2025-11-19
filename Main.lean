@@ -27,7 +27,7 @@ def socketAddress :=
   Std.Net.SocketAddressV4.mk localHost 8080
 
 def fileLocation : System.FilePath :=
-  s!"./db"
+  s!"./.db"
 
 def processCommand (cmd : Command) (client : Socket.Client) (mutex : SharedMutex Memory) : Async Unit := do
     match cmd with
