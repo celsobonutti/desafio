@@ -37,7 +37,7 @@ def processCommand (cmd : Command) (client : Socket.Client) (mutex : SharedMutex
     | Command.write key value =>
       mutex.atomically do
         modify (λ map => map.insert key value)
-      client.send s!"well going our operation\r".toUTF8
+      client.send s!"sucess\r".toUTF8
 
     | Command.read key =>
       let map ← mutex.atomicallyRead do
